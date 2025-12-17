@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xây dựng Chuỗi Thức Ăn - Phiên bản Mở rộng</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: radial-gradient(circle, #f0fdf4 0%, #dcfce7 100%);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .creature-card {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .prey-exit {
+            transform: translateX(-200px) scale(0.5);
+            opacity: 0;
+            filter: blur(4px);
+        }
+
+        .predator-enter {
+            animation: slideInCenter 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes slideInCenter {
+            from { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+            to { transform: scale(1) rotate(0); opacity: 1; }
+        }
+
+        .option-card {
+            transition: all 0.3s ease;
+        }
+
+        .option-card:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            background: white !important;
+        }
+
+        .shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+
+        .chain-item {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #86efac; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="p-4 text-center z-20">
+        <h1 class="text-2xl md:text-4xl font-black text-green-800 tracking-tight">SINH THÁI HỌC: CHUỖI THỨC ĂN</h1>
+        <p id="game-hint" class="text-green-700 font-medium">Tìm sinh vật có thể ăn sinh vật này!</p>
+    </header>
+
+    <!-- Game Screen -->
+    <main id="game-screen" class="flex-grow flex flex-col items-center justify-between py-8 px-4">
+        
+        <!-- Target Area -->
+        <div class="relative flex items-center justify-center w-full max-w-xl flex-grow">
+            <!-- Ghosting Exit -->
+            <div id="prev-creature-container" class="absolute flex flex-col items-center pointer-events-none opacity-0 transition-all">
+                <div id="prev-emoji" class="text-7xl mb-2"></div>
+                <div id="prev-name" class="text-sm font-bold text-gray-400"></div>
+            </div>
+
+            <!-- Current Focus -->
+            <div id="current-creature-container" class="flex flex-col items-center z-10 text-center">
+                <div id="current-emoji" class="text-[120px] md:text-[160px] leading-none mb-4 drop-shadow-xl select-none"></div>
+                <div class="space-y-1">
+                    <div id="current-name" class="bg-white px-8 py-2 rounded-2xl shadow-lg text-2xl font-black text-green-900 border-b-4 border-green-200"></div>
+                    <div id="current-type" class="text-xs font-bold uppercase tracking-widest text-green-600/70"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Options Panel -->
+        <div class="w-full max-w-5xl mt-8">
+            <div class="flex justify-between items-center mb-4 px-2">
+                <span class="text-sm font-bold text-green-800/50 uppercase">Danh sách sinh vật tiềm năng</span>
+                <span id="score-badge" class="bg-green-200 text-green-800 px-3 py-1 rounded-full text-xs font-bold">Chuỗi: 1</span>
+            </div>
+            <div id="options-grid" class="grid grid-cols-3 md:grid-cols-6 gap-3 md:gap-4">
+                <!-- Options injected by JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Final Summary -->
+    <div id="summary-screen" class="fixed inset-0 bg-green-950/95 backdrop-blur-xl z-50 hidden flex flex-col items-center justify-center p-6 overflow-hidden">
+        <div class="max-w-6xl w-full text-center space-y-8">
+            <div class="space-y-2">
+                <h2 class="text-4xl md:text-6xl font-black text-white">Chuỗi hoàn tất!</h2>
+                <p class="text-green-300 text-xl">Hệ sinh thái đã đạt đến trạng thái cân bằng</p>
+            </div>
+            
+            <div id="final-chain-scroll" class="flex flex-wrap justify-center items-center gap-4 bg-white/5 p-8 rounded-[40px] border border-white/10 max-h-[50vh] overflow-y-auto">
+                <!-- Chain results -->
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                <div class="bg-white/10 p-4 rounded-2xl">
+                    <p class="text-white/60 text-xs uppercase font-bold">Tổng số</p>
+                    <p id="total-count" class="text-3xl font-black text-yellow-400">0</p>
+                </div>
+                <div class="bg-white/10 p-4 rounded-2xl">
+                    <p class="text-white/60 text-xs uppercase font-bold">Bậc cao nhất</p>
+                    <p id="top-predator-name" class="text-xl font-black text-white truncate">N/A</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 justify-center pt-4">
+                <button onclick="restartGame()" class="bg-green-500 hover:bg-green-400 text-white px-12 py-5 rounded-2xl font-black text-xl transition-all shadow-[0_10px_0_rgb(34,197,94)] active:shadow-none active:translate-y-2">CHƠI LẠI 🔁</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Toast -->
+    <div id="toast" class="fixed top-10 left-1/2 -translate-x-1/2 px-8 py-4 bg-red-600 text-white font-black rounded-2xl shadow-2xl opacity-0 transition-all z-50 pointer-events-none transform translate-y-[-20px]">
+        ❌ SINH VẬT NÀY KHÔNG ĂN ĐƯỢC!
+    </div>
+
+    <script>
+        const creatures = [
+            // Producers (Sản xuất)
+            { id: 'grass', name: 'Cỏ', emoji: '🌿', type: 'Sản xuất', diet: [] },
+            { id: 'algae', name: 'Tảo', emoji: '🥗', type: 'Sản xuất', diet: [] },
+            { id: 'flower', name: 'Hoa rừng', emoji: '🌻', type: 'Sản xuất', diet: [] },
+            { id: 'carrot', name: 'Cà rốt', emoji: '🥕', type: 'Sản xuất', diet: [] },
+            { id: 'plankton', name: 'Phù du', emoji: '🦠', type: 'Sản xuất', diet: [] },
+            { id: 'nut', name: 'Hạt dẻ', emoji: '🌰', type: 'Sản xuất', diet: [] },
+            
+            // Primary Consumers (Tiêu thụ bậc 1 - Ăn cỏ)
+            { id: 'cricket', name: 'Dế mèn', emoji: '🦗', type: 'Ăn cỏ', diet: ['grass', 'flower'] },
+            { id: 'caterpillar', name: 'Sâu bướm', emoji: '🐛', type: 'Ăn cỏ', diet: ['grass', 'flower'] },
+            { id: 'rabbit', name: 'Thỏ', emoji: '🐰', type: 'Ăn cỏ', diet: ['grass', 'carrot', 'flower'] },
+            { id: 'shrimp', name: 'Tôm nhỏ', emoji: '🦐', type: 'Ăn cỏ', diet: ['algae', 'plankton'] },
+            { id: 'snail', name: 'Ốc sên', emoji: '🐌', type: 'Ăn cỏ', diet: ['grass', 'algae'] },
+            { id: 'bee', name: 'Ong', emoji: '🐝', type: 'Ăn cỏ', diet: ['flower'] },
+            { id: 'mouse', name: 'Chuột túi', emoji: '🐭', type: 'Ăn tạp', diet: ['grass', 'nut', 'cricket'] },
+            { id: 'squirrel', name: 'Sóc', emoji: '🐿️', type: 'Ăn cỏ', diet: ['nut'] },
+            { id: 'small_fish', name: 'Cá lòng tong', emoji: '🐟', type: 'Ăn tạp', diet: ['plankton', 'shrimp', 'algae'] },
+
+            // Secondary Consumers (Tiêu thụ bậc 2)
+            { id: 'frog', name: 'Ếch cây', emoji: '🐸', type: 'Ăn thịt', diet: ['cricket', 'caterpillar', 'bee', 'shrimp'] },
+            { id: 'chicken', name: 'Gà ta', emoji: '🐔', type: 'Ăn tạp', diet: ['cricket', 'caterpillar', 'grass', 'mouse'] },
+            { id: 'crab', name: 'Cua biển', emoji: '🦀', type: 'Ăn thịt', diet: ['shrimp', 'small_fish', 'snail'] },
+            { id: 'hedgehog', name: 'Nhím', emoji: '🦔', type: 'Ăn tạp', diet: ['caterpillar', 'snail', 'cricket'] },
+            { id: 'bat', name: 'Dơi', emoji: '🦇', type: 'Ăn thịt', diet: ['bee', 'cricket', 'caterpillar'] },
+            { id: 'spider', name: 'Nhện', emoji: '🕷️', type: 'Ăn thịt', diet: ['bee', 'cricket', 'caterpillar'] },
+            
+            // Tertiary Consumers (Tiêu thụ bậc 3)
+            { id: 'snake', name: 'Rắn hổ mang', emoji: '🐍', type: 'Ăn thịt', diet: ['mouse', 'frog', 'chicken', 'rabbit', 'squirrel'] },
+            { id: 'fish_big', name: 'Cá vược', emoji: '🐡', type: 'Ăn thịt', diet: ['small_fish', 'shrimp', 'crab'] },
+            { id: 'owl', name: 'Cú mèo', emoji: '🦉', type: 'Ăn thịt', diet: ['mouse', 'snake', 'frog', 'hedgehog'] },
+            { id: 'fox', name: 'Cáo đỏ', emoji: '🦊', type: 'Ăn thịt', diet: ['rabbit', 'chicken', 'mouse', 'squirrel', 'hedgehog'] },
+            { id: 'penguin', name: 'Chim cánh cụt', emoji: '🐧', type: 'Ăn thịt', diet: ['small_fish', 'shrimp'] },
+            
+            // Apex Predators (Săn mồi đỉnh bảng)
+            { id: 'eagle', name: 'Đại bàng', emoji: '🦅', type: 'Săn mồi đỉnh', diet: ['snake', 'fox', 'chicken', 'owl', 'fish_big', 'rabbit', 'penguin'] },
+            { id: 'shark', name: 'Cá mập', emoji: '🦈', type: 'Săn mồi đỉnh', diet: ['fish_big', 'small_fish', 'crab', 'penguin'] },
+            { id: 'tiger', name: 'Hổ', emoji: '🐯', type: 'Săn mồi đỉnh', diet: ['fox', 'chicken', 'snake', 'rabbit', 'hedgehog', 'wolf'] },
+            { id: 'wolf', name: 'Sói xám', emoji: '🐺', type: 'Săn mồi đỉnh', diet: ['fox', 'mouse', 'chicken', 'rabbit', 'hedgehog'] },
+            { id: 'lion', name: 'Sư tử', emoji: '🦁', type: 'Săn mồi đỉnh', diet: ['fox', 'wolf', 'tiger', 'snake'] },
+            { id: 'crocodile', name: 'Cá sấu', emoji: '🐊', type: 'Săn mồi đỉnh', diet: ['fish_big', 'snake', 'chicken', 'frog', 'crab'] },
+            { id: 'orca', name: 'Cá voi sát thủ', emoji: '🐋', type: 'Săn mồi đỉnh', diet: ['shark', 'penguin', 'fish_big'] },
+            { id: 'polar_bear', name: 'Gấu Bắc Cực', emoji: '🐻‍❄️', type: 'Săn mồi đỉnh', diet: ['penguin', 'fish_big', 'wolf'] }
+        ];
+
+        let currentChain = [];
+        let currentCreature = null;
+
+        function initGame() {
+            currentChain = [];
+            document.getElementById('summary-screen').classList.add('hidden');
+            
+            // Sinh vật bắt đầu ngẫu nhiên hoàn toàn
+            // Lưu ý: Chúng ta ưu tiên các sinh vật có loài khác ăn được nó để game không kết thúc ngay
+            const possibleStarts = creatures.filter(c => creatures.some(p => p.diet.includes(c.id)));
+            currentCreature = possibleStarts[Math.floor(Math.random() * possibleStarts.length)];
+            
+            currentChain.push(currentCreature);
+            updateDisplay();
+            generateOptions();
+        }
+
+        function updateDisplay() {
+            const container = document.getElementById('current-creature-container');
+            document.getElementById('current-emoji').innerText = currentCreature.emoji;
+            document.getElementById('current-name').innerText = currentCreature.name;
+            document.getElementById('current-type').innerText = currentCreature.type;
+            document.getElementById('score-badge').innerText = `Chuỗi: ${currentChain.length}`;
+            
+            container.classList.remove('predator-enter');
+            void container.offsetWidth;
+            container.classList.add('predator-enter');
+        }
+
+        function generateOptions() {
+            const grid = document.getElementById('options-grid');
+            grid.innerHTML = '';
+
+            // Tìm những kẻ săn mồi tiềm năng
+            const predators = creatures.filter(c => c.diet.includes(currentCreature.id));
+            
+            if (predators.length === 0) {
+                setTimeout(showSummary, 1500);
+                document.getElementById('game-hint').innerText = "🏁 Không còn sinh vật nào ăn được loài này!";
+                return;
+            }
+
+            document.getElementById('game-hint').innerText = "Tìm sinh vật có thể ăn sinh vật này!";
+
+            let options = [];
+            // Thêm 1-2 đáp án đúng
+            const rightCount = Math.min(predators.length, 2);
+            const shuffledPredators = [...predators].sort(() => 0.5 - Math.random());
+            for(let i=0; i<rightCount; i++) options.push(shuffledPredators[i]);
+
+            // Lấp đầy bằng các sinh vật ngẫu nhiên khác
+            while (options.length < 6) {
+                const randomC = creatures[Math.floor(Math.random() * creatures.length)];
+                if (!options.find(o => o.id === randomC.id) && randomC.id !== currentCreature.id) {
+                    options.push(randomC);
+                }
+            }
+
+            options.sort(() => 0.5 - Math.random()).forEach(creature => {
+                const card = document.createElement('div');
+                card.className = 'option-card bg-white/60 p-3 md:p-4 rounded-2xl shadow-sm border-2 border-white flex flex-col items-center cursor-pointer';
+                card.innerHTML = `
+                    <div class="text-3xl md:text-5xl mb-2 select-none">${creature.emoji}</div>
+                    <div class="text-[10px] md:text-xs font-black text-green-900 text-center uppercase truncate w-full">${creature.name}</div>
+                `;
+                card.onclick = () => handleChoice(creature, card);
+                grid.appendChild(card);
+            });
+        }
+
+        function handleChoice(selected, element) {
+            if (selected.diet.includes(currentCreature.id)) {
+                const prevContainer = document.getElementById('prev-creature-container');
+                document.getElementById('prev-emoji').innerText = currentCreature.emoji;
+                document.getElementById('prev-name').innerText = currentCreature.name;
+                
+                prevContainer.style.opacity = "0.6";
+                prevContainer.classList.add('prey-exit');
+
+                currentCreature = selected;
+                currentChain.push(selected);
+                
+                setTimeout(() => {
+                    updateDisplay();
+                    generateOptions();
+                    prevContainer.classList.remove('prey-exit');
+                    prevContainer.style.opacity = "0";
+                }, 400);
+            } else {
+                element.classList.add('shake', 'bg-red-50', 'border-red-300');
+                showToast();
+                setTimeout(() => element.classList.remove('shake'), 400);
+            }
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.style.opacity = "1";
+            toast.style.transform = "translate(-50%, 0)";
+            setTimeout(() => {
+                toast.style.opacity = "0";
+                toast.style.transform = "translate(-50%, -20px)";
+            }, 1500);
+        }
+
+        function showSummary() {
+            const screen = document.getElementById('summary-screen');
+            const container = document.getElementById('final-chain-scroll');
+            
+            screen.classList.remove('hidden');
+            container.innerHTML = '';
+            document.getElementById('total-count').innerText = currentChain.length;
+            document.getElementById('top-predator-name').innerText = currentCreature.name;
+
+            currentChain.forEach((c, index) => {
+                setTimeout(() => {
+                    const item = document.createElement('div');
+                    item.className = 'chain-item flex flex-col items-center bg-white p-4 rounded-3xl shadow-xl min-w-[120px]';
+                    item.innerHTML = `
+                        <div class="text-5xl mb-1">${c.emoji}</div>
+                        <div class="text-xs font-black text-green-900 uppercase">${c.name}</div>
+                        <div class="text-[8px] font-bold text-green-500 mt-1">${index === 0 ? 'BẮT ĐẦU' : 'BẬC ' + index}</div>
+                    `;
+                    container.appendChild(item);
+
+                    if (index < currentChain.length - 1) {
+                        const arrow = document.createElement('div');
+                        arrow.className = 'chain-item text-yellow-400 text-2xl font-black mx-1';
+                        arrow.innerText = '▶';
+                        container.appendChild(arrow);
+                    }
+                    
+                    // Tự động cuộn tới cuối
+                    container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+                }, index * 350);
+            });
+        }
+
+        function restartGame() {
+            initGame();
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
